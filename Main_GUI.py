@@ -25,13 +25,14 @@ import time
 from tkcalendar import Calendar
 import cv2
 from pymodbus.client.sync import ModbusTcpClient
-# import torch
+import torch
 from tkinter import messagebox
 from gridfs import GridFSBucket
-from tensorflow import keras
-import tensorflow as tf
+# from tensorflow import keras
+# import tensorflow as tf
 from src.COMMON.common import db_to_images_bulk_output,db_to_images_bulk_raw,load_env
-import tensorflow as tf
+# import tensorflow as tf
+from src.MODEL.detectron import torchy_warmup
 # print(tf.__version__)
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
@@ -44,7 +45,8 @@ db_url = env_vars.get('DATABASE_URL')
 db_name = env_vars.get('DATABASE_NAME')
 plc_ip = env_vars.get('PLC_IP')
 exp_time = env_vars.get('EXPOSURE_TIME')
-weight_path = env_vars.get('WEIGHT_FILE')
+weight_path1= env_vars.get('WEIGHT_FILE1')
+# weight_path2 = env_vars.get('WEIGHT_FILE2')
 serial_number = env_vars.get('CAMERA_ID')
 deployment = env_vars.get('DEPLOYMENT')
 machine_no = env_vars.get('MACHINE_NO')
@@ -67,19 +69,25 @@ client = ModbusTcpClient(str(plc_ip))
 modbus_client = client.connect()
 print(modbus_client,'modbus_client')
 
+if deployment == "True":
+    #GPU
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model1 = torch.jit.load(os.path.join(MEDIA_PATH,f'WEIGHTS/{weight_path1}')).to(device)
+    torch.backends.cudnn.benchmark = True
+    torch.cuda.amp.autocast()
+    torch.cuda.empty_cache()
+else:
+    #CPU
+    device = torch.device("cpu")
+    model1 = torch.jit.load(os.path.join(MEDIA_PATH,f'WEIGHTS/{weight_path1}'), map_location=device)
+
 # if deployment == "True":
-#     # Check if a GPU is available
-#     device = '/gpu:0' if tf.config.list_physical_devices('GPU') else '/cpu:0'
-#     with tf.device(device):
-#         # Load the autoencoder model to GPU if available
-#         model = keras.models.load_model(os.path.join(MEDIA_PATH, f'WEIGHTS/{weight_path}'))
-# else:
 #     # Load the model to CPU
 #     try:
-#         model = keras.models.load_model(os.path.join(MEDIA_PATH, f'WEIGHTS/{weight_path}'))
+#         model2 = keras.models.load_model(os.path.join(MEDIA_PATH, f'WEIGHTS/{weight_path2}'))
 #     except Exception as e:
 #         print(f"Error loading model: {e}")
-# model.compile(optimizer='adam', loss='mse',metrics=['accuracy'])
+# model2.compile(optimizer='adam', loss='mse',metrics=['accuracy'])
 
 
 global flag
@@ -107,6 +115,10 @@ else:
     pass
 
 img = cv2.imread(os.path.join(MEDIA_PATH,'RAW IMAGES/1.jpg'))
+
+torchy_warmup(img,model1)
+torchy_warmup(img,model1)
+torchy_warmup(img,model1)
 
 
 #GUI SETUP
@@ -243,10 +255,10 @@ def capture_image_save():
     
     print("Save Mode")
     if deployment == "True":
-        t1 = threading.Thread(target=main_process_save_plc, args=(asi,client,MEDIA_PATH,mydb,))
+        t1 = threading.Thread(target=main_process_save_plc, args=(asi,client,MEDIA_PATH,mydb,model1,))
         t1.start()
     else:
-        t1 = threading.Thread(target=main_process_save, args=(asi,MEDIA_PATH,mydb,))
+        t1 = threading.Thread(target=main_process_save, args=(asi,MEDIA_PATH,mydb,model1,))
         t1.start()
     fs_files = mydb['INPUT IMAGES.files']
     fs_chunks = mydb['INPUT IMAGES.chunks']
@@ -411,13 +423,12 @@ def InspectionCount():
     # Schedule the next update after 1 second (1000 milliseconds)
     win.after(1000, InspectionCount)
  
- 
-inslbl = tk.Label(win, bg='#405D72',font=('Helvetica', 18, 'bold'),
+inslbl = tk.Label(win, bg='#405D72',font=('Helvetica', 20, 'bold'),
                foreground='black')
-inslbl.place(relx=0.56, rely=0.3)
+inslbl.place(relx=0.54, rely=0.3)
 InspectionCount()
 tk.Label(win, text="INSPECTION COUNT :", bg='#405D72',font=(
-    'Helvetica', 16,'bold')).place(relx=0.4, rely=0.3)
+    'Helvetica', 18,'bold')).place(relx=0.4, rely=0.3)
  
  
  
@@ -426,19 +437,19 @@ def DefectCount():
     today_date = datetime.now().strftime("%d-%m-%Y")
  
     # Count documents with decision: "Reject" for today
-    reject_count = mycollec.count_documents({"cur_date": today_date, "is_anomalous":"Anamoly"})
+    reject_count = mycollec.count_documents({"cur_date": today_date, "Result":1})
     if reject_count == None:
         reject_count = 0
     defectlabel.config(text=reject_count)
     win.after(1000, DefectCount)  # Update every second (1000 milliseconds)
  
  
-defectlabel = tk.Label(win,bg='#405D72', font=('Helvetica', 18, 'bold'),
+defectlabel = tk.Label(win,bg='#405D72', font=('Helvetica', 20, 'bold'),
                     foreground='red', text='')
-defectlabel.place(x=1030, y=211)
+defectlabel.place(x=1400, y=300)
 
 tk.Label(win, text="DEFECT COUNT : ",bg='#405D72', font=(
-    'Helvetica', 16,'bold')).place(relx=0.62, rely=0.3)
+    'Helvetica', 18,'bold')).place(relx=0.62, rely=0.3)
 DefectCount()
  
 # ############################# GOOD PART LABEL#################
@@ -446,19 +457,19 @@ def goodcount():
     # Get today's date in the required format
     today_date = datetime.now().strftime("%d-%m-%Y")
     # Count documents with decision: "Accept" for today
-    accept_count = mycollec.count_documents({"cur_date": today_date, "is_anomalous":"good"})
+    accept_count = mycollec.count_documents({"cur_date": today_date, "Result":0})
     if accept_count == None:
         accept_count = 0
     goodlabl.config(text=accept_count)
     win.after(1000, goodcount)  # Update every second (1000 milliseconds)
  
-goodlabl = tk.Label(win,bg='#405D72', font=('Helvetica', 18, 'bold'),
+goodlabl = tk.Label(win,bg='#405D72', font=('Helvetica', 20, 'bold'),
                  foreground='green', text='')
-goodlabl.place(x=1255, y=211)
+goodlabl.place(x=1730, y=300)
  
  
 tk.Label(win,bg='#405D72', text="GOOD COUNT : ", font=(
-    'Helvetica', 16,'bold')).place(relx=0.8, rely=0.3)
+    'Helvetica', 18,'bold')).place(relx=0.8, rely=0.3)
 goodcount()
 # win.overrideredirect(True)
 win.mainloop()

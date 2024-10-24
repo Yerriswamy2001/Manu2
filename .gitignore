@@ -1,0 +1,8 @@
+auto_env
+__pycache__/
+media/PREDICTED IMAGES
+media/WEIGHTS
+media/RAW IMAGES
+src/camfile/persist.json
+persist.json
+.env

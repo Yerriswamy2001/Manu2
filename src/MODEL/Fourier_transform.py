@@ -1,13 +1,14 @@
 import cv2
 import numpy as np
+import os
 
-def process_image_for_anomaly(image, cycle_no,mydb,file_raw,MEDIA_PATH,format_date_db , thresh_1=2.6000000000000e-05,thresh_2=2.8999999999999e-05):
+def process_image_for_anomaly(image,mydb,MEDIA_PATH, thresh_1=2.2000000000000e-05):
     # Function to remove background from an image
     def remove_background(image):
-        center_x = 929
+        center_x = 932
         center_y = 638
-        radius = 430
-        inr = 350
+        radius = 420
+        inr = 345
         if len(image.shape) == 3:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
          # Create a mask
@@ -29,6 +30,14 @@ def process_image_for_anomaly(image, cycle_no,mydb,file_raw,MEDIA_PATH,format_da
  
         return cropped_img
     image=remove_background(image)
+    output_folder = r"C:\Users\MicroApt\Desktop\Manu2\media\RAW IMAGES"
+    output_image_path = os.path.join(output_folder, "processed_image.png")  # Specify the output filename
+
+# Save the image
+    cv2.imwrite(output_image_path, image)
+
+# Print confirmation
+    print(f"Processed image saved at: {output_image_path}")
 
     # Function to compute the 2D Fourier Transform and return magnitude and phase
     def fourier_transform(image):
@@ -53,10 +62,9 @@ def process_image_for_anomaly(image, cycle_no,mydb,file_raw,MEDIA_PATH,format_da
         return img_back
 
     # Function to calculate Mean Squared Error (MSE) as the reconstruction loss
-    def compute_normalized_mse(original,reconstructed):
-        reconstructed_resized = cv2.resize(reconstructed, (original.shape[1], original.shape[0]))
-        mse = np.mean((original.astype(np.float32) - reconstructed_resized.astype(np.float32)) ** 2)
-        normalized_mse = mse / original.size  # Normalize by the number of pixels
+    def compute_normalized_mse(image,img_back):
+        mse = np.mean((image.astype(np.float32) - img_back.astype(np.float32)) ** 2)
+        normalized_mse = mse / image.size  # Normalize by the number of pixels
         return normalized_mse
     
     # Step 2: Fourier Transform (Magnitude and Phase)
@@ -77,10 +85,10 @@ def process_image_for_anomaly(image, cycle_no,mydb,file_raw,MEDIA_PATH,format_da
     print(f"Reconstruction Loss (MSE): {mse_loss}")
     
     # Step 6: Check if it's an anomaly or good based on the MSE loss and threshold
-    if (mse_loss >= thresh_1) and (mse_loss <= thresh_2):
-        result = 'good'
+    if (mse_loss >= thresh_1):
+        result=0
     else:
-        result='Anomaly'
+        result=1
 
     print(f"Image classified as {result}")
 

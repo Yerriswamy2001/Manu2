@@ -1,12 +1,16 @@
 import numpy as np
 import cv2
 import time
-# from keras.models import load_model
+from keras.models import load_model
 import matplotlib.pyplot as plt
  
-def process_image_for_anomaly1(image, model, cycle_no,mydb,file_raw,MEDIA_PATH,format_date_db,threshold=0.004952204937580973, center_x=929, center_y=638, radius=430, inr=350):
+def process_image_for_anomaly1(image, model2,mydb1,MEDIA_PATH,threshold=0.0008286634518299251):
     # Function to remove background from an image
-    def remove_background(image, center_x, center_y, radius, inr):
+    def remove_background(image):
+        center_x = 929
+        center_y = 638
+        radius = 430
+        inr = 350
         # Create a mask
         mask = np.zeros(image.shape[:2], dtype=np.uint8)
         cv2.circle(mask, (center_x, center_y), radius, 255, -1)
@@ -23,6 +27,7 @@ def process_image_for_anomaly1(image, model, cycle_no,mydb,file_raw,MEDIA_PATH,f
         # Crop the image
         cropped_img = img[y1:y2, x1:x2]
         return cropped_img
+    image=remove_background(image)
  
     # Function to preprocess a single image
     def preprocess_image(image):
@@ -42,9 +47,9 @@ def process_image_for_anomaly1(image, model, cycle_no,mydb,file_raw,MEDIA_PATH,f
         return mse
  
     # Function for inference
-    def infer_image(model, image, threshold):
+    def infer_image(model2, image, threshold):
         # Reconstruct the image
-        reconstructed_image = model.predict(image)  # Reconstruct the image
+        reconstructed_image = model2.predict(image)  # Reconstruct the image
         # Calculate reconstruction error
         error = calculate_reconstruction_error(image, reconstructed_image)
         # Determine if the image is anomalous
@@ -53,15 +58,11 @@ def process_image_for_anomaly1(image, model, cycle_no,mydb,file_raw,MEDIA_PATH,f
  
     # Start the process
     start_time = time.time()
- 
-    # Remove the background from the image
-    image = remove_background(image, center_x, center_y, radius, inr)
-   
     # Preprocess the image
     image = preprocess_image(image)
    
     # Run inference
-    original_image, reconstructed_image, error, is_anomalous = infer_image(model, image, threshold)
+    original_image, reconstructed_image, error, is_anomalous = infer_image(model2, image, threshold)
    
     # Print results
     print(f"Error: {error}, Anomalous: {is_anomalous}")

@@ -7,7 +7,7 @@ import threading
 
 def nparray_to_bytes(cycle_no,db,filename,collection_name,img_array,format_date_db,formatted_datetime_db):
     # Convert the image data to bytes
-    image_bytes = cv2.imencode('.jpg', img_array)[1].tobytes()
+    image_bytes = cv2.imencode('.png', img_array)[1].tobytes()
     # Create a new GridFS object
     fs = GridFS(db,collection_name)
     # Store the image in GridFS
